@@ -1,12 +1,13 @@
-"""Módulo Inspector de Compatibilidad CSS3 y Web APIs para WEB TESTER EDU (v1.5.0)."""
+"""Módulo Inspector de Compatibilidad CSS3 y Web APIs con Seguridad Sandbox (v1.5.0)."""
 
 import re
 import urllib.request
 from typing import List, Dict, Any
+from core.url_resolver import validate_safe_local_path
 
 
 def inspect_compatibility_target(target_url: str) -> Dict[str, Any]:
-    """Audita el código HTML/CSS/JS de una URL para identificar tecnologías modernas y su matriz de soporte en motores."""
+    """Audita HTML/CSS/JS para identificar tecnologías modernas y su matriz de soporte."""
     results = {
         "target_url": target_url,
         "css_features": [],
@@ -16,16 +17,16 @@ def inspect_compatibility_target(target_url: str) -> Dict[str, Any]:
 
     content = ""
     try:
-        if target_url.startswith("file:///"):
-            local_path = target_url.replace("file:///", "").replace("%20", " ")
-            with open(local_path, "r", encoding="utf-8", errors="ignore") as f:
+        if target_url.startswith("file://"):
+            safe_path = validate_safe_local_path(target_url)
+            with open(safe_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
         else:
             req = urllib.request.Request(target_url, headers={"User-Agent": "WebTesterEdu/1.5.0"})
             with urllib.request.urlopen(req, timeout=10) as response:
                 content = response.read().decode("utf-8", errors="ignore")
     except Exception as err:
-        return {"error": f"No se pudo analizar el contenido: {err}"}
+        return {"error": f"Bloqueo de Seguridad o Fallo de Lectura: {err}"}
 
     # 1. Análisis de Tecnologías CSS Modernas
     css_patterns = [
