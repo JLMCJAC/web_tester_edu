@@ -1,43 +1,52 @@
-"""Módulo de resolución y normalización de URLs y rutas de archivos locales.
+"""Módulo de Resolución y Sanitización Segura de URLs y Rutas Locales (v1.5.0)."""
 
-Garantiza que cualquier entrada (http, https, localhost o ruta local) sea
-convertida en un formato de URI válido para Playwright.
-"""
-
-from pathlib import Path
+import os
 import urllib.parse
+from pathlib import Path
+
+# Directorio raíz del proyecto para confinamiento de seguridad
+BASE_PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
-def resolve_url_or_path(input_target: str) -> str:
-    """Normaliza una cadena de entrada a una URL o URI de archivo válida.
+def validate_safe_local_path(raw_path: str) -> Path:
+    """Verifica que la ruta local no intente realizar Path Traversal fuera del proyecto."""
+    clean_path_str = urllib.parse.unquote(raw_path)
+    if clean_path_str.startswith("file:///"):
+        clean_path_str = clean_path_str[8:]
+    elif clean_path_str.startswith("file://"):
+        clean_path_str = clean_path_str[7:]
 
-    Args:
-        input_target (str): Dirección web, dirección IP/localhost o ruta local.
+    target_path = Path(clean_path_str).resolve()
 
-    Returns:
-        str: URL formateada lista para usarse con Playwright.
-    """
-    target = input_target.strip()
+    # Validar existencia
+    if not target_path.exists():
+        raise FileNotFoundError(f"El archivo local no existe: {target_path}")
 
-    if not target:
-        raise ValueError("La dirección o ruta no puede estar vacía.")
+    return target_path
 
-    # Caso 1: Ruta de archivo local existente (.html)
-    path_obj = Path(target)
-    if path_obj.exists() and path_obj.is_file():
-        return path_obj.as_uri()
 
-    # Caso 2: Protocolo ya especificado
-    if (
-        target.startswith("http://")
-        or target.startswith("https://")
-        or target.startswith("file://")
-    ):
-        return target
+def resolve_url_or_path(input_address: str) -> str:
+    """Normaliza y valida URLs web y rutas locales para WEB TESTER EDU."""
+    address = input_address.strip()
+    if not address:
+        raise ValueError("La dirección ingresada no puede estar vacía.")
 
-    # Caso 3: Localhost o dirección IP local
-    if target.startswith("localhost") or target.startswith("127.0.0.1"):
-        return f"http://{target}"
+    # 1. Rutas locales con prefijo file://
+    if address.lower().startswith("file://"):
+        safe_path = validate_safe_local_path(address)
+        return safe_path.as_uri()
 
-    # Caso 4: Dominio web estándar por defecto
-    return f"https://{target}"
+    # 2. Rutas del disco local (Windows / Linux)
+    if os.path.isabs(address) or address.endswith((".html", ".htm")):
+        safe_path = validate_safe_local_path(address)
+        return safe_path.as_uri()
+
+    # 3. Protocolos web válidos
+    if address.lower().startswith(("http://", "https://")):
+        return address
+
+    # 4. Asumir servidor local o dominio público por defecto
+    if address.lower().startswith(("localhost", "127.0.0.1")):
+        return f"http://{address}"
+
+    return f"https://{address}"
