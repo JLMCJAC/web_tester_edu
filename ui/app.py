@@ -1,4 +1,4 @@
-"""Interfaz Gráfica Principal de WEB TESTER EDU (v1.4.1 - Estructura Integrada y Fix de Módulos)."""
+"""Interfaz Gráfica Principal de WEB TESTER EDU (v1.5.0 - Compatibilidad Avanzada y APIs Web)."""
 
 import os
 import threading
@@ -34,6 +34,7 @@ from validators.html_validator import validate_html_target
 from validators.css_validator import validate_css_target
 from validators.js_validator import validate_js_target
 from validators.wcag_validator import validate_wcag_target
+from validators.compatibility_inspector import inspect_compatibility_target
 from performance.perf_inspector import inspect_performance_target
 from evidences.screenshot_manager import get_screenshots_dir, generate_screenshot_filename, purge_all_evidences_and_reports
 
@@ -50,7 +51,7 @@ class WebTesterApp(ctk.CTk):
         self.config_data = load_config()
         ctk.set_appearance_mode(self.config_data.get("theme", "System"))
 
-        self.title("WEB TESTER EDU - Plataforma de Pruebas y Auditoría QA (v1.4.1)")
+        self.title("WEB TESTER EDU - Plataforma de Pruebas y Auditoría QA (v1.5.0)")
         self.geometry("1080x760")
         self.minsize(980, 680)
         self.resizable(True, True)
@@ -85,6 +86,7 @@ class WebTesterApp(ctk.CTk):
         self.tab_profiles = self.tabview.add("Perfiles Custom")
         self.tab_validators = self.tabview.add("Validadores Web")
         self.tab_perf = self.tabview.add("Rendimiento Web")
+        self.tab_compat = self.tabview.add("Compatibilidad & APIs")
 
         self._build_tab_test()
         self._build_tab_history()
@@ -93,6 +95,7 @@ class WebTesterApp(ctk.CTk):
         self._build_tab_profiles()
         self._build_tab_validators()
         self._build_tab_performance()
+        self._build_tab_compatibility()
 
     def _build_tab_test(self) -> None:
         self.main_container = ctk.CTkFrame(self.tab_test, fg_color="transparent")
@@ -451,8 +454,73 @@ class WebTesterApp(ctk.CTk):
         )
         self.perf_textbox.pack(padx=15, pady=10, fill="both", expand=True)
 
+    def _build_tab_compatibility(self) -> None:
+        self.compat_title = ctk.CTkLabel(
+            self.tab_compat,
+            text="Matriz de Compatibilidad CSS3 y APIs Web Modernas (v1.5.0)",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        )
+        self.compat_title.pack(pady=(10, 5))
+
+        self.compat_btns_frame = ctk.CTkFrame(self.tab_compat, fg_color="transparent")
+        self.compat_btns_frame.pack(fill="x", padx=15, pady=5)
+
+        self.run_compat_btn = ctk.CTkButton(
+            self.compat_btns_frame,
+            text="Analizar Compatibilidad de Motores",
+            fg_color="#d97706",
+            hover_color="#b45309",
+            command=self._on_run_compatibility_audit,
+        )
+        self.run_compat_btn.pack(side="left", padx=5)
+
+        self.compat_textbox = ctk.CTkTextbox(
+            self.tab_compat, font=ctk.CTkFont(family="Consolas", size=12)
+        )
+        self.compat_textbox.pack(padx=15, pady=10, fill="both", expand=True)
+
+    def _on_run_compatibility_audit(self) -> None:
+        raw_input = self.url_entry.get().strip()
+        if not raw_input:
+            messagebox.showwarning("Sin Dirección", "Ingresa una URL o selecciona un archivo HTML para analizar.")
+            return
+
+        try:
+            target_url = resolve_url_or_path(raw_input)
+            res = inspect_compatibility_target(target_url)
+
+            if "error" in res:
+                messagebox.showerror("Error de Análisis", res["error"])
+                return
+
+            text = f"=== MATRIZ EDUCATIVA DE COMPATIBILIDAD WEB Y APIS (v1.5.0) ===\n"
+            text += f"Objetivo: {res['target_url']}\n"
+            text += "=" * 80 + "\n\n"
+
+            text += "[1] CARACTERÍSTICAS DE CSS3 DETECTADAS Y SOPORTE DE MOTORES:\n"
+            if res["css_features"]:
+                for item in res["css_features"]:
+                    text += f"  • {item['feature']:<30} -> {item['matrix']}\n"
+            else:
+                text += "  • No se detectaron características complejas de CSS3 en el archivo auditado.\n"
+            text += "\n"
+
+            text += "[2] APIS WEB DE JAVASCRIPT DETECTADAS Y SOPORTE DE MOTORES:\n"
+            if res["web_apis"]:
+                for item in res["web_apis"]:
+                    text += f"  • {item['api']:<30} -> {item['matrix']}\n"
+            else:
+                text += "  • No se detectó uso explícito de APIs avanzadas de JS en el archivo auditado.\n"
+
+            self.compat_textbox.configure(state="normal")
+            self.compat_textbox.delete("1.0", "end")
+            self.compat_textbox.insert("1.0", text)
+            self.compat_textbox.configure(state="disabled")
+
+        except Exception as err:
+            messagebox.showerror("Error de Compatibilidad", f"No se pudo completar el análisis:\n{err}")
+
     def _ensure_author_name(self) -> str:
-        """Obtiene el nombre del evaluador o solicita ingresarlo si el campo está vacío."""
         author = self.evi_author_entry.get().strip()
         if not author:
             dialog = ctk.CTkInputDialog(
@@ -469,7 +537,6 @@ class WebTesterApp(ctk.CTk):
         return author
 
     def _on_export_pdf(self) -> None:
-        """Recopila todas las evidencias, auditorías y rendimiento para generar un PDF único."""
         author = self._ensure_author_name()
         project = self.evi_proj_entry.get().strip() or "Proyecto de Pruebas Web"
         raw_url = self.url_entry.get().strip() or "file:///index.html"
@@ -504,12 +571,10 @@ class WebTesterApp(ctk.CTk):
             messagebox.showerror("Error de Exportación", f"No se pudo generar el documento PDF:\n{error_msg}")
 
     def _on_open_screenshots_folder(self) -> None:
-        """Abre el explorador de archivos de Windows en la carpeta de evidencias."""
         screenshots_dir = get_screenshots_dir()
         os.startfile(screenshots_dir)
 
     def _on_capture_and_save_evidence(self) -> None:
-        """Toma una captura del dispositivo activo incorporando marca de agua."""
         project = self.evi_proj_entry.get().strip() or "Proyecto Web"
         author = self._ensure_author_name()
         findings = self.evi_findings_entry.get().strip()
@@ -592,7 +657,6 @@ class WebTesterApp(ctk.CTk):
         threading.Thread(target=async_capture, daemon=True).start()
 
     def _on_batch_capture_evidences(self) -> None:
-        """Genera capturas automáticas para 4 vistas (Desktop, iPhone, Android, Tablet)."""
         project = self.evi_proj_entry.get().strip() or "Proyecto Web"
         author = self._ensure_author_name()
         raw_url = self.url_entry.get().strip()
@@ -674,7 +738,6 @@ class WebTesterApp(ctk.CTk):
         threading.Thread(target=async_batch, daemon=True).start()
 
     def _on_clear_evidences_click(self) -> None:
-        """Realiza una limpieza completa de privacidad: borra evidencias, imágenes, reportes PDF e historial de pruebas."""
         confirm = messagebox.askyesno(
             "Confirmar Reinicio de Privacidad",
             "¿Deseas eliminar todas las capturas, reportes PDF, evidencias y el historial de navegación para otro estudiante?\n\n(Los perfiles custom, marcadores favoritos y el tema de la app no se borrarán).",
@@ -698,6 +761,10 @@ class WebTesterApp(ctk.CTk):
             self.perf_textbox.configure(state="normal")
             self.perf_textbox.delete("1.0", "end")
             self.perf_textbox.configure(state="disabled")
+
+            self.compat_textbox.configure(state="normal")
+            self.compat_textbox.delete("1.0", "end")
+            self.compat_textbox.configure(state="disabled")
 
             self._refresh_evidences_panel()
             self._refresh_history_panel()
@@ -803,10 +870,8 @@ class WebTesterApp(ctk.CTk):
             js_res = validate_js_target(target_url)
             wcag_res = validate_wcag_target(target_url)
 
-            text = f"=== AUDITORÍA EDUCATIVA DE ESTÁNDARES Y ACCESIBILIDAD WEB (v1.4.1) ===\n"
+            text = f"=== AUDITORÍA EDUCATIVA DE ESTÁNDARES Y ACCESIBILIDAD WEB (v1.5.0) ===\n"
             text += f"Objetivo: {target_url}\n"
-            text += "=" * 78 + "\n"
-            text += "NOTA METODOLÓGICA: Análisis estático de buenas prácticas.\n"
             text += "=" * 78 + "\n\n"
 
             text += "[1] AUDITORÍA DE ESTRUCTURA HTML:\n"
@@ -853,7 +918,7 @@ class WebTesterApp(ctk.CTk):
             def run_async():
                 metrics = inspect_performance_target(target_url)
 
-                text = f"=== INFORME DE RENDIMIENTO Y RED (v1.4.1) ===\n"
+                text = f"=== INFORME DE RENDIMIENTO Y RED (v1.5.0) ===\n"
                 text += f"Objetivo: {metrics['target_url']}\n"
                 text += "=" * 75 + "\n\n"
 
